@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SSH Tunnel Manager</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <div id="loginView" class="login-wrap">
+    <form id="loginForm" class="login-card">
+      <div class="brand-mark">ST</div>
+      <p class="eyebrow">SECURE CONNECTIONS</p>
+      <h1>SSH Tunnel Manager</h1>
+      <p class="muted">Sign in to manage your SSH port forwards.</p>
+      <label>Username<input name="username" autocomplete="username" required value="admin"></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary full" type="submit">Sign in</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </div>
+
+  <div id="appView" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">ST</div><div><strong>SSH Tunnel</strong><small>MANAGER</small></div></div>
+      <div class="nav-label">WORKSPACE</div>
+      <button class="nav-item selected" data-page="tunnels"><span class="nav-dot"></span> Tunnels</button>
+      <button class="nav-item" data-page="activity"><span class="nav-dot"></span> Activity logs</button>
+      <div class="sidebar-bottom"><div class="secure-note"><span class="status-dot"></span><div><strong>Local agent</strong><small>Running on this server</small></div></div><button id="logoutBtn" class="nav-item">Sign out</button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><div><span class="crumb">Workspace /</span> <strong id="pageTitle">Tunnels</strong></div><div class="user-pill"><span class="avatar">A</span><span id="usernameLabel">admin</span></div></header>
+      <section id="tunnelsPage">
+        <div class="page-heading"><div><p class="eyebrow">CONNECTION CONTROL</p><h1>Your tunnels</h1><p class="muted">Manage secure routes to your private services.</p></div><button id="addBtn" class="primary">Add tunnel</button></div>
+        <div class="stats">
+          <article class="stat-card"><span class="stat-label">TOTAL TUNNELS</span><strong id="totalCount">0</strong><small>Saved profiles</small></article>
+          <article class="stat-card"><span class="stat-label">ACTIVE</span><strong id="activeCount">0</strong><small>Currently connected</small></article>
+          <article class="stat-card"><span class="stat-label">STOPPED</span><strong id="stoppedCount">0</strong><small>Ready to start</small></article>
+        </div>
+        <div class="section-head"><div><h2>Tunnel profiles</h2><p class="muted">Start a tunnel to open a local forwarding port on this server.</p></div><input id="searchInput" class="search" placeholder="Search tunnels..." aria-label="Search tunnels"></div>
+        <div id="tunnelList" class="tunnel-list"></div>
+        <div id="emptyState" class="empty hidden"><div class="empty-glyph">+</div><h3>No tunnels configured</h3><p>Create a profile to connect to a remote service through SSH.</p><button id="emptyAddBtn" class="primary">Create first tunnel</button></div>
+      </section>
+
+      <section id="activityPage" class="hidden">
+        <div class="page-heading"><div><p class="eyebrow">SYSTEM EVENTS</p><h1>Activity logs</h1><p class="muted">Recent tunnel lifecycle and SSH diagnostic events.</p></div><button id="refreshLogsBtn" class="secondary">Refresh logs</button></div>
+        <div id="logList" class="log-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="tunnelDialog">
+    <form id="tunnelForm" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">TUNNEL CONFIGURATION</p><h2 id="dialogTitle">Add tunnel</h2></div><button type="button" id="closeDialog" class="close-btn" aria-label="Close">×</button></div>
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <label class="wide">Tunnel name<input name="name" required maxlength="80" placeholder="Production PostgreSQL"></label>
+        <label>SSH host<input name="ssh_host" required placeholder="bastion.example.com"></label>
+        <label>SSH port<input name="ssh_port" type="number" min="1" max="65535" value="22" required></label>
+        <label>SSH username<input name="ssh_user" required placeholder="tunnel-user"></label>
+        <label>SSH key filename<input name="key_file" required placeholder="id_ed25519" pattern="[A-Za-z0-9._-]+" title="Filename only, from ./ssh-keys"></label>
+        <label>Local bind address<select name="local_host"><option value="127.0.0.1">127.0.0.1 (recommended)</option><option value="localhost">localhost</option></select></label>
+        <label>Local port<input name="local_port" type="number" min="1" max="65535" required placeholder="15432"></label>
+        <label>Remote target host<input name="remote_host" required placeholder="db.internal.example.com"></label>
+        <label>Remote target port<input name="remote_port" type="number" min="1" max="65535" required placeholder="5432"></label>
+      </div>
+      <p class="form-hint">The SSH key must already exist in the SSH key directory (default ~/.ssh) — no need to copy keys. The SSH server's host key must be trusted in its known_hosts file (default ~/.ssh/known_hosts), e.g. run <code>ssh-keyscan -p PORT host</code> once for new hosts.</p>
+      <p id="formError" class="error"></p>
+      <div class="dialog-actions"><button type="button" id="cancelDialog" class="secondary">Cancel</button><button type="submit" class="primary">Save tunnel</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status"></div>
+</body>
+</html>

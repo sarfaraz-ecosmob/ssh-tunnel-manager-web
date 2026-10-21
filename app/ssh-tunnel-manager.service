@@ -1,0 +1,27 @@
+[Unit]
+Description=SSH Tunnel Manager Web UI
+Documentation=https://github.com/sarfaraz/ssh-tunnel-manager-web
+After=network.target
+
+[Service]
+Type=simple
+User=sarfaraz
+WorkingDirectory=/home/sarfaraz/Documents/Training/ssh-tunnel-manager-web/app
+ExecStart=/home/sarfaraz/.nvm/versions/node/v24.18.0/bin/node server.js
+Restart=on-failure
+RestartSec=5
+
+# Environment — override any of these or put them in the .env file
+# at /home/sarfaraz/Documents/Training/ssh-tunnel-manager-web/.env
+EnvironmentFile=-/home/sarfaraz/Documents/Training/ssh-tunnel-manager-web/.env
+
+# Harden the service a little
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ssh-tunnel-manager
+
+[Install]
+WantedBy=multi-user.target

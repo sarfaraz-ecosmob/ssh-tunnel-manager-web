@@ -1,0 +1,6 @@
+.env
+data/*
+!data/.gitkeep
+ssh-keys/*
+!ssh-keys/.gitkeep
+node_modules/
