@@ -18,7 +18,7 @@ function readEnv(file) {
   return out;
 }
 const env = readEnv(path.join(ROOT, '.env'));
-const APP_PORT = env.APP_PORT || '9999';
+const APP_PORT = process.env.APP_PORT || env.APP_PORT || '9999';
 const BASE = `http://127.0.0.1:${APP_PORT}`;
 const LOCAL_PORT = 15432;
 const TUNNEL = {

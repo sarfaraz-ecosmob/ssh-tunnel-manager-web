@@ -30,17 +30,25 @@ def load_authorized_blob(path):
 
 
 class TunnelServer(paramiko.ServerInterface):
-    def __init__(self, authorized_blob, pending):
+    def __init__(self, authorized_blob, pending, password=None):
         self.authorized_blob = authorized_blob
         self.pending = pending  # {channel id: connected upstream socket}
+        self.password = password  # when set, password auth is also accepted
 
     def get_allowed_auths(self, username):
-        return "publickey"
+        return "publickey,password" if self.password is not None else "publickey"
 
     def check_auth_publickey(self, username, key):
         if key.asbytes() == self.authorized_blob:
             LOG("auth ok user=%s key=%s" % (username, key.get_name()))
             return paramiko.AUTH_SUCCESSFUL
+        return paramiko.AUTH_FAILED
+
+    def check_auth_password(self, username, password):
+        if self.password is not None and password == self.password:
+            LOG("auth ok user=%s method=password" % username)
+            return paramiko.AUTH_SUCCESSFUL
+        LOG("password auth rejected for user=%s" % username)
         return paramiko.AUTH_FAILED
 
     def check_channel_request(self, kind, chanid):
@@ -95,10 +103,10 @@ def serve_channel(chan, upstream):
     upstream.close()
 
 
-def handle_client(client, host_key, authorized_blob, pending):
+def handle_client(client, host_key, authorized_blob, pending, password=None):
     transport = paramiko.Transport(client)
     transport.add_server_key(host_key)
-    server = TunnelServer(authorized_blob, pending)
+    server = TunnelServer(authorized_blob, pending, password)
     try:
         transport.start_server(server=server)
         while True:
@@ -127,6 +135,8 @@ def main():
     parser.add_argument("--port", type=int, default=2022)
     parser.add_argument("--host-key", required=True)
     parser.add_argument("--authorized-key", required=True)
+    parser.add_argument("--password", default=None,
+                        help="if set, also accept this password (enables password auth)")
     args = parser.parse_args()
 
     host_key = paramiko.Ed25519Key(filename=args.host_key)
@@ -142,7 +152,7 @@ def main():
         client, addr = sock.accept()
         LOG("connection from %s:%d" % addr)
         pending = {}
-        threading.Thread(target=handle_client, args=(client, host_key, authorized_blob, pending), daemon=True).start()
+        threading.Thread(target=handle_client, args=(client, host_key, authorized_blob, pending, args.password), daemon=True).start()
 
 
 if __name__ == "__main__":

@@ -60,13 +60,16 @@
         <label>SSH host<input name="ssh_host" required placeholder="bastion.example.com"></label>
         <label>SSH port<input name="ssh_port" type="number" min="1" max="65535" value="22" required></label>
         <label>SSH username<input name="ssh_user" required placeholder="tunnel-user"></label>
-        <label>SSH key filename<input name="key_file" required placeholder="id_ed25519" pattern="[A-Za-z0-9._-]+" title="Filename only, from ./ssh-keys"></label>
+        <label>Authentication<select name="auth_method"><option value="key">SSH key (recommended)</option><option value="password">Username &amp; password</option></select></label>
+        <label id="keyFileField">SSH key filename<input name="key_file" required placeholder="id_ed25519" pattern="[A-Za-z0-9._-]+" title="Filename only, from ./ssh-keys"></label>
+        <label id="passwordField" class="hidden">SSH password<input name="ssh_password" type="password" autocomplete="new-password" placeholder="Required"></label>
         <label>Local bind address<select name="local_host"><option value="127.0.0.1">127.0.0.1 (recommended)</option><option value="localhost">localhost</option></select></label>
         <label>Local port<input name="local_port" type="number" min="1" max="65535" required placeholder="15432"></label>
         <label>Remote target host<input name="remote_host" required placeholder="db.internal.example.com"></label>
         <label>Remote target port<input name="remote_port" type="number" min="1" max="65535" required placeholder="5432"></label>
       </div>
-      <p class="form-hint">The SSH key must already exist in the SSH key directory (default ~/.ssh) — no need to copy keys. The SSH server's host key must be trusted in its known_hosts file (default ~/.ssh/known_hosts), e.g. run <code>ssh-keyscan -p PORT host</code> once for new hosts.</p>
+      <p class="form-hint" id="keyHint">The SSH key must already exist in the SSH key directory (default ~/.ssh) — no need to copy keys. The SSH server's host key must be trusted in its known_hosts file (default ~/.ssh/known_hosts), e.g. run <code>ssh-keyscan -p PORT host</code> once for new hosts.</p>
+      <p class="form-hint hidden" id="passwordHint">The saved password is used to connect as the SSH user; password authentication must be enabled on the SSH server. The server's host key must be trusted in the known_hosts file, e.g. run <code>ssh-keyscan -p PORT host</code> once for new hosts.</p>
       <p id="formError" class="error"></p>
       <div class="dialog-actions"><button type="button" id="cancelDialog" class="secondary">Cancel</button><button type="submit" class="primary">Save tunnel</button></div>
     </form>

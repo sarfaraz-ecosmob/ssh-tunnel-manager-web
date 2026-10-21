@@ -11,8 +11,13 @@ cd "$ROOT"
 SSH_PORT=2022
 TARGET_PORT=8099
 LOCAL_PORT=15432
-APP_PORT="$(grep -E '^APP_PORT=' .env | head -1 | cut -d= -f2- | tr -d '\r' || true)"
+PASSWORD_LOCAL_PORT=15442
+E2E_SSH_PASSWORD="${E2E_SSH_PASSWORD:-e2e-password-secret}"
+# APP_PORT may be overridden from the environment so the harness can run on a
+# spare port while the real service is up.
+APP_PORT="${APP_PORT:-$(grep -E '^APP_PORT=' .env | head -1 | cut -d= -f2- | tr -d '\r' || true)}"
 APP_PORT="${APP_PORT:-9999}"
+export APP_PORT
 NODE_BIN="$(command -v node)"
 
 PIDS=()
@@ -39,6 +44,7 @@ echo "== preflight"
 port_busy "$SSH_PORT" && fail "port $SSH_PORT already busy"
 port_busy "$TARGET_PORT" && fail "port $TARGET_PORT already busy"
 port_busy "$LOCAL_PORT" && fail "port $LOCAL_PORT already busy"
+port_busy "$PASSWORD_LOCAL_PORT" && fail "port $PASSWORD_LOCAL_PORT already busy"
 port_busy "$APP_PORT" && fail "port $APP_PORT already busy"
 
 echo "== keys"
@@ -49,9 +55,9 @@ echo "== start target service (remote side of the tunnel) on 127.0.0.1:$TARGET_P
 python3 test/target_service.py --port "$TARGET_PORT" > test/target.log 2>&1 &
 PIDS+=($!)
 
-echo "== start test SSH endpoint on 127.0.0.1:$SSH_PORT"
+echo "== start test SSH endpoint on 127.0.0.1:$SSH_PORT (key + password auth)"
 python3 test/fake_sshd.py --port "$SSH_PORT" --host-key test/hostkey_ed25519 \
-  --authorized-key ssh-keys/id_ed25519_test.pub > test/sshd.log 2>&1 &
+  --authorized-key ssh-keys/id_ed25519_test.pub --password "$E2E_SSH_PASSWORD" > test/sshd.log 2>&1 &
 PIDS+=($!)
 
 wait_port "$TARGET_PORT" || fail "target service did not start"
@@ -63,10 +69,10 @@ grep -q 'ssh-ed25519' data/known_hosts || fail "ssh-keyscan produced no ed25519 
 
 echo "== remove leftovers from previous test runs"
 "$NODE_BIN" -e '
-const { DatabaseSync } = require("node:sqlite");
-const db = new DatabaseSync("data/tunnels.sqlite");
-db.prepare("DELETE FROM tunnels WHERE name = ?").run("E2E Local Forward");
-db.close();
+const { DatabaseSync } = require("node:sqlite");  const db = new DatabaseSync("data/tunnels.sqlite");
+  db.prepare("DELETE FROM tunnels WHERE name = ?").run("E2E Local Forward");
+  db.prepare("DELETE FROM tunnels WHERE name = ?").run("E2E Password Tunnel");
+  db.close();
 ' 2>/dev/null || true
 
 echo "== start app on 127.0.0.1:$APP_PORT"
@@ -93,12 +99,25 @@ NODE_PATH="${NODE_PATH:+$NODE_PATH:}$(npm root -g)" \
     fail "UI flow failed"
   }
 
+echo "== drive the SSH password-auth flow (headless Chrome)"
+E2E_SSH_PASSWORD="$E2E_SSH_PASSWORD" \
+CHROME_PATH="${CHROME_PATH:-/usr/bin/google-chrome}" \
+NODE_PATH="${NODE_PATH:+$NODE_PATH:}$(npm root -g)" \
+  node test/password_flow.js || {
+    echo "--- app.log (tail) ---"; tail -40 test/app.log >&2 || true
+    echo "--- sshd.log (tail) ---"; tail -20 test/sshd.log >&2 || true
+    fail "password flow failed"
+  }
+
 echo "== post-checks"
 port_busy "$LOCAL_PORT" && fail "local port $LOCAL_PORT still listening after stop"
+port_busy "$PASSWORD_LOCAL_PORT" && fail "local port $PASSWORD_LOCAL_PORT still listening after stop"
 grep -q 'SSH Tunnel Manager listening' test/app.log || fail "app log missing startup line"
 grep -q 'forward request' test/sshd.log || fail "ssh endpoint never received a forward request"
 grep -q 'E2E_TARGET_OK' test/target.log || fail "target service never received traffic"
+grep -q 'method=password' test/sshd.log || fail "ssh endpoint never accepted a password authentication"
 
 echo
-echo "PASS: tunnel created in the UI, started, local port $LOCAL_PORT reachable"
+echo "PASS: key-auth tunnel created in the UI, started, local port $LOCAL_PORT reachable"
 echo "      from the host namespace, traffic verified end-to-end, then stopped."
+echo "      Password-auth tunnel flow (create/start/verify/stop/delete) also passed."

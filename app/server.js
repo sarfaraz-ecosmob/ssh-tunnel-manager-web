@@ -50,7 +50,9 @@ db.exec(`
     ssh_host TEXT NOT NULL,
     ssh_port INTEGER NOT NULL,
     ssh_user TEXT NOT NULL,
-    key_file TEXT NOT NULL,
+    key_file TEXT NOT NULL DEFAULT '',
+    auth_method TEXT NOT NULL DEFAULT 'key',
+    ssh_password TEXT NOT NULL DEFAULT '',
     local_host TEXT NOT NULL,
     local_port INTEGER NOT NULL,
     remote_host TEXT NOT NULL,
@@ -58,13 +60,22 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 `);
+// Migrate databases created before SSH password authentication existed.
+{
+  const cols = db.prepare('PRAGMA table_info(tunnels)').all().map(c => c.name);
+  if (!cols.includes('auth_method')) db.exec("ALTER TABLE tunnels ADD COLUMN auth_method TEXT NOT NULL DEFAULT 'key'");
+  if (!cols.includes('ssh_password')) db.exec("ALTER TABLE tunnels ADD COLUMN ssh_password TEXT NOT NULL DEFAULT ''");
+}
+// Saved SSH passwords now live in this file; keep it owner-only.
+try { fs.chmodSync(DB_PATH, 0o600); } catch { /* best effort */ }
 const listStmt = db.prepare('SELECT * FROM tunnels ORDER BY name COLLATE NOCASE');
 const getStmt = db.prepare('SELECT * FROM tunnels WHERE id = ?');
 const insertStmt = db.prepare(`INSERT INTO tunnels
-  (id,name,ssh_host,ssh_port,ssh_user,key_file,local_host,local_port,remote_host,remote_port,created_at)
-  VALUES (@id,@name,@ssh_host,@ssh_port,@ssh_user,@key_file,@local_host,@local_port,@remote_host,@remote_port,@created_at)`);
+  (id,name,ssh_host,ssh_port,ssh_user,key_file,auth_method,ssh_password,local_host,local_port,remote_host,remote_port,created_at)
+  VALUES (@id,@name,@ssh_host,@ssh_port,@ssh_user,@key_file,@auth_method,@ssh_password,@local_host,@local_port,@remote_host,@remote_port,@created_at)`);
 const updateStmt = db.prepare(`UPDATE tunnels SET name=@name,ssh_host=@ssh_host,ssh_port=@ssh_port,
-  ssh_user=@ssh_user,key_file=@key_file,local_host=@local_host,local_port=@local_port,
+  ssh_user=@ssh_user,key_file=@key_file,auth_method=@auth_method,ssh_password=@ssh_password,
+  local_host=@local_host,local_port=@local_port,
   remote_host=@remote_host,remote_port=@remote_port WHERE id=@id`);
 
 function log(message, level = 'info', tunnelId = null) {
@@ -73,7 +84,8 @@ function log(message, level = 'info', tunnelId = null) {
 }
 function publicTunnel(row) {
   if (!row) return null;
-  return { ...row, hasKey: Boolean(row.key_file), status: active.has(row.id) ? active.get(row.id).status : 'stopped' };
+  const { ssh_password, ...rest } = row; // never expose the saved SSH password
+  return { ...rest, hasKey: Boolean(row.key_file), hasPassword: Boolean(row.ssh_password), status: active.has(row.id) ? active.get(row.id).status : 'stopped' };
 }
 function parseAllowlist(name) {
   return (process.env[name] || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -97,28 +109,42 @@ function validPort(port) {
   return Number.isInteger(Number(port)) && Number(port) >= 1 && Number(port) <= 65535;
 }
 function validateTunnel(body, existingId = null) {
-  const fields = ['name', 'ssh_host', 'ssh_user', 'key_file', 'remote_host'];
+  const fields = ['name', 'ssh_host', 'ssh_user', 'remote_host'];
   for (const f of fields) {
     if (typeof body[f] !== 'string' || !body[f].trim() || body[f].length > 253) {
       throw new Error(`Invalid ${f}`);
     }
   }
+  // Default to key auth so older API clients keep working unchanged.
+  const auth_method = body.auth_method == null || body.auth_method === '' ? 'key' : body.auth_method;
+  if (!['key', 'password'].includes(auth_method)) throw new Error('Authentication method must be "key" or "password"');
   if (body.name.trim().length > 80) throw new Error('Name must be 80 characters or fewer');
   if (!isValidHost(body.ssh_host.trim())) throw new Error('Invalid SSH host');
   if (!isValidHost(body.remote_host.trim())) throw new Error('Invalid remote target host');
   if (!/^[a-zA-Z0-9._-]+$/.test(body.ssh_user) || body.ssh_user.length > 64) throw new Error('Invalid SSH username');
   if (!validPort(body.ssh_port) || !validPort(body.local_port) || !validPort(body.remote_port)) throw new Error('Ports must be between 1 and 65535');
   if (!['127.0.0.1', 'localhost'].includes(body.local_host)) throw new Error('Local bind address must be 127.0.0.1 or localhost');
-  if (!/^[a-zA-Z0-9._-]+$/.test(body.key_file) || body.key_file.includes('..')) throw new Error('Key file must be a filename in the mounted key directory');
   if (!allowed(body.ssh_host.trim(), 'ALLOWED_SSH_HOSTS')) throw new Error('SSH host is not in ALLOWED_SSH_HOSTS');
   if (!allowed(body.remote_host.trim(), 'ALLOWED_REMOTE_TARGETS')) throw new Error('Remote target is not in ALLOWED_REMOTE_TARGETS');
-  const keyPath = path.join(KEY_DIR, body.key_file);
-  if (!fs.existsSync(keyPath) || !fs.statSync(keyPath).isFile()) throw new Error(`SSH key file not found in ${KEY_DIR}`);
+  let ssh_password = '';
+  if (auth_method === 'key') {
+    if (typeof body.key_file !== 'string' || !body.key_file.trim() || body.key_file.length > 253) throw new Error('Invalid key_file');
+    if (!/^[a-zA-Z0-9._-]+$/.test(body.key_file) || body.key_file.includes('..')) throw new Error('Key file must be a filename in the mounted key directory');
+    const keyPath = path.join(KEY_DIR, body.key_file);
+    if (!fs.existsSync(keyPath) || !fs.statSync(keyPath).isFile()) throw new Error(`SSH key file not found in ${KEY_DIR}`);
+  } else {
+    // Password auth: a blank password on edit keeps the previously saved one.
+    const old = existingId ? getStmt.get(existingId) : null;
+    ssh_password = (typeof body.ssh_password === 'string' && body.ssh_password) ? body.ssh_password : (old && old.ssh_password) || '';
+    if (!ssh_password) throw new Error('SSH password is required for password authentication');
+    if (ssh_password.length > 253 || /[\x00-\x1f\x7f]/.test(ssh_password)) throw new Error('SSH password must be 253 characters or fewer without control characters');
+  }
   const duplicate = listStmt.all().find(t => t.id !== existingId && t.local_host === body.local_host && t.local_port === Number(body.local_port));
   if (duplicate) throw new Error(`Local port already configured by "${duplicate.name}"`);
   return {
     name: body.name.trim(), ssh_host: body.ssh_host.trim(), ssh_port: Number(body.ssh_port),
-    ssh_user: body.ssh_user, key_file: body.key_file, local_host: body.local_host,
+    ssh_user: body.ssh_user, key_file: auth_method === 'key' ? body.key_file : '',
+    auth_method, ssh_password, local_host: body.local_host,
     local_port: Number(body.local_port), remote_host: body.remote_host.trim(),
     remote_port: Number(body.remote_port)
   };
@@ -237,12 +263,16 @@ app.post('/api/tunnels/:id/start', (req, res) => {
     const row = getStmt.get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Tunnel not found' });
     if (active.has(row.id)) return res.status(409).json({ error: 'Tunnel is already running' });
-    const keyPath = path.join(KEY_DIR, row.key_file);
-    if (!fs.existsSync(keyPath)) return res.status(400).json({ error: 'SSH key file is missing' });
+    const usePassword = row.auth_method === 'password';
+    const keyPath = usePassword ? null : path.join(KEY_DIR, row.key_file);
+    if (!usePassword && !fs.existsSync(keyPath)) return res.status(400).json({ error: 'SSH key file is missing' });
+    if (usePassword && !row.ssh_password) return res.status(400).json({ error: 'SSH password is missing for this tunnel; edit it and save a password' });
     const args = [
-      '-N', '-T', '-p', String(row.ssh_port), '-i', keyPath,
-      '-o', 'BatchMode=yes',
-      '-o', 'IdentitiesOnly=yes',
+      '-N', '-T',
+      ...(usePassword
+        ? ['-o', 'PreferredAuthentications=password', '-o', 'PubkeyAuthentication=no', '-o', 'KbdInteractiveAuthentication=no', '-o', 'NumberOfPasswordPrompts=1']
+        : ['-i', keyPath, '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes']),
+      '-p', String(row.ssh_port),
       '-o', 'StrictHostKeyChecking=yes',
       '-o', `UserKnownHostsFile=${KNOWN_HOSTS_FILE}`,
       '-o', 'ExitOnForwardFailure=yes',
@@ -252,7 +282,20 @@ app.post('/api/tunnels/:id/start', (req, res) => {
       '-L', `${row.local_host}:${row.local_port}:${row.remote_host}:${row.remote_port}`,
       `${row.ssh_user}@${row.ssh_host}`
     ];
-    const child = spawn(SSH_BIN, args, { shell: false, stdio: ['ignore', 'ignore', 'pipe'] });
+    const spawnOpts = { shell: false, stdio: ['ignore', 'ignore', 'pipe'] };
+    if (usePassword) {
+      // OpenSSH cannot read a saved password directly, so it is handed over
+      // through a private SSH_ASKPASS helper (password stays in the child's
+      // environment, never on disk or on a command line).
+      spawnOpts.env = {
+        ...process.env,
+        DISPLAY: process.env.DISPLAY || ':0', // needed for askpass without a tty (OpenSSH < 8.4)
+        SSH_ASKPASS: ensureAskpass(),
+        SSH_ASKPASS_REQUIRE: 'force', // used by OpenSSH >= 8.4; harmless otherwise
+        STM_ASKPASS_PASSWORD: row.ssh_password
+      };
+    }
+    const child = spawn(SSH_BIN, args, spawnOpts);
     const entry = { child, status: 'starting', startedAt: new Date().toISOString(), error: '' };
     active.set(row.id, entry);
     child.stderr.on('data', chunk => {
@@ -328,8 +371,19 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
+let askpassPath = null;
+function ensureAskpass() {
+  if (!askpassPath) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-askpass-'));
+    askpassPath = path.join(dir, 'askpass.sh');
+    fs.writeFileSync(askpassPath, '#!/bin/sh\nprintf "%s\\n" "$STM_ASKPASS_PASSWORD"\n', { mode: 0o700 });
+    fs.chmodSync(askpassPath, 0o700);
+  }
+  return askpassPath;
+}
 function cleanup() {
   for (const [, entry] of active) entry.child.kill('SIGTERM');
+  if (askpassPath) { try { fs.rmSync(path.dirname(askpassPath), { recursive: true, force: true }); } catch { /* best effort */ } }
   db.close();
 }
 process.on('SIGTERM', () => { cleanup(); process.exit(0); });

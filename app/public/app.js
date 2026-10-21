@@ -73,8 +73,23 @@ function openDialog(tunnel = null) {
     if (form.elements[key]) form.elements[key].value = value ?? '';
   }
   form.elements.id.value = tunnel?.id || '';
+  form.elements.ssh_password.placeholder = tunnel && tunnel.hasPassword ? 'Leave blank to keep saved password' : 'Required';
+  syncAuthFields(form);
   $('tunnelDialog').showModal();
 }
+function syncAuthFields(form) {
+  const isPassword = form.elements.auth_method.value === 'password';
+  $('keyFileField').classList.toggle('hidden', isPassword);
+  $('passwordField').classList.toggle('hidden', !isPassword);
+  $('keyHint').classList.toggle('hidden', isPassword);
+  $('passwordHint').classList.toggle('hidden', !isPassword);
+  // Disabled inputs are omitted from FormData, so only the chosen secret is sent.
+  form.elements.key_file.disabled = isPassword;
+  form.elements.ssh_password.disabled = !isPassword;
+}
+$('tunnelForm').addEventListener('change', e => {
+  if (e.target.name === 'auth_method') syncAuthFields(e.target.form);
+});
 $('tunnelForm').addEventListener('submit', async e => {
   e.preventDefault(); $('formError').textContent = '';
   const form = e.currentTarget;
@@ -106,7 +121,7 @@ function renderTunnels() {
       <div class="tunnel-main"><div class="tunnel-icon">${escapeHtml(t.name.slice(0,2).toUpperCase())}</div>
         <div style="min-width:0"><div class="tunnel-title-row"><span class="tunnel-title">${escapeHtml(t.name)}</span><span class="badge ${status}">${escapeHtml(status)}</span></div>
         <div class="route"><b>${escapeHtml(t.local_host)}:${t.local_port}</b> <span>forwards to</span> <b>${escapeHtml(t.remote_host)}:${t.remote_port}</b></div>
-        <div class="subroute">via ${escapeHtml(t.ssh_user)}@${escapeHtml(t.ssh_host)}:${t.ssh_port}</div></div>
+        <div class="subroute">via ${escapeHtml(t.ssh_user)}@${escapeHtml(t.ssh_host)}:${t.ssh_port} &middot; ${t.auth_method === 'password' ? 'password auth' : 'key auth'}</div></div>
       </div>
       <div class="actions">
         ${running ? `<button class="secondary" data-action="stop" data-id="${t.id}">Stop</button>` : `<button class="primary" data-action="start" data-id="${t.id}">Start tunnel</button>`}
