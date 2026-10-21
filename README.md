@@ -1,6 +1,6 @@
 # SSH Tunnel Manager Web
 
-A self-hosted starter web app for managing OpenSSH local port forwards from a Linux server. It is inspired by the profile and one-click start/stop workflow of [mdminhazulhaque/ssh-tunnel-manager](https://github.com/mdminhazulhaque/ssh-tunnel-manager), but it is a separate web implementation.
+A self-hosted starter web app for managing OpenSSH local port forwards from a Linux server. It is inspired by the profile and one-click start/stop workflow.
 
 ## Current scope
 
