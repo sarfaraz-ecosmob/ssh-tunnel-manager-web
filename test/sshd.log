@@ -1,11 +1,12 @@
 [fake_sshd] listening on 127.0.0.1:2022
-[fake_sshd] connection from 127.0.0.1:53380
-[fake_sshd] connection from 127.0.0.1:53390
-[fake_sshd] connection from 127.0.0.1:53392
-[fake_sshd] connection from 127.0.0.1:53396
+[fake_sshd] connection from 127.0.0.1:45696
+[fake_sshd] connection from 127.0.0.1:45706
+[fake_sshd] connection from 127.0.0.1:45714
+[fake_sshd] connection from 127.0.0.1:45728
+[fake_sshd] connection from 127.0.0.1:45742
 Exception: Incompatible ssh peer (no acceptable host key)
 Exception: Incompatible ssh peer (no acceptable host key)
-[fake_sshd] connection from 127.0.0.1:53400
+Traceback (most recent call last):
 Traceback (most recent call last):
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2127, in run
     self._handler_table[ptype](m)
@@ -16,58 +17,40 @@ Traceback (most recent call last):
 paramiko.ssh_exception.SSHException: Incompatible ssh peer (no acceptable host key)
 
 [fake_sshd] client error: Incompatible ssh peer (no acceptable host key)
-Traceback (most recent call last):
+[fake_sshd] connection closed
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2127, in run
     self._handler_table[ptype](m)
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2242, in _negotiate_keys
     self._parse_kex_init(m)
-[fake_sshd] connection closed
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2482, in _parse_kex_init
     raise SSHException(
 paramiko.ssh_exception.SSHException: Incompatible ssh peer (no acceptable host key)
 
+[fake_sshd] client error: Incompatible ssh peer (no acceptable host key)
+[fake_sshd] connection closed
 [fake_sshd] client error: 
 [fake_sshd] connection closed
 Exception: Incompatible ssh peer (no acceptable host key)
-[fake_sshd] client error: Incompatible ssh peer (no acceptable host key)
-[fake_sshd] connection closed
 Traceback (most recent call last):
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2127, in run
     self._handler_table[ptype](m)
+  File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2242, in _negotiate_keys
+    self._parse_kex_init(m)
+  File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2482, in _parse_kex_init
+    raise SSHException(
+paramiko.ssh_exception.SSHException: Incompatible ssh peer (no acceptable host key)
+
+[fake_sshd] client error: Incompatible ssh peer (no acceptable host key)
+[fake_sshd] connection closed
 Exception: Incompatible ssh peer (no acceptable host key)
-  File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2242, in _negotiate_keys
 Traceback (most recent call last):
-    self._parse_kex_init(m)
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2127, in run
-  File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2482, in _parse_kex_init
     self._handler_table[ptype](m)
-    raise SSHException(
-paramiko.ssh_exception.SSHException: Incompatible ssh peer (no acceptable host key)
-
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2242, in _negotiate_keys
-[fake_sshd] client error: Incompatible ssh peer (no acceptable host key)
     self._parse_kex_init(m)
   File "/usr/lib/python3/dist-packages/paramiko/transport.py", line 2482, in _parse_kex_init
-[fake_sshd] connection closed
     raise SSHException(
 paramiko.ssh_exception.SSHException: Incompatible ssh peer (no acceptable host key)
 
 [fake_sshd] client error: Incompatible ssh peer (no acceptable host key)
-[fake_sshd] connection closed
-[fake_sshd] connection from 127.0.0.1:53404
-[fake_sshd] auth ok user=tunneluser key=ssh-ed25519
-[fake_sshd] auth ok user=tunneluser key=ssh-ed25519
-[fake_sshd] forward request from 127.0.0.1:52864 -> 127.0.0.1:8099
-[fake_sshd] channel 0 established; pumping data
-[fake_sshd] forward request from 127.0.0.1:57466 -> 127.0.0.1:8099
-[fake_sshd] channel 1 established; pumping data
-[fake_sshd] forward request from 127.0.0.1:57480 -> 127.0.0.1:8099
-[fake_sshd] channel 2 established; pumping data
-[fake_sshd] connection closed
-[fake_sshd] connection from 127.0.0.1:41356
-[fake_sshd] auth ok user=tunneluser method=password
-[fake_sshd] forward request from 127.0.0.1:60036 -> 127.0.0.1:8099
-[fake_sshd] channel 0 established; pumping data
-[fake_sshd] forward request from 127.0.0.1:60048 -> 127.0.0.1:8099
-[fake_sshd] channel 1 established; pumping data
 [fake_sshd] connection closed

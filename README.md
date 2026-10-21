@@ -1,17 +1,15 @@
 # SSH Tunnel Manager Web
 
 A self-hosted web app for managing OpenSSH local port forwards from a Linux
-server. It is inspired by the profile and one-click start/stop workflow of
-[mdminhazulhaque/ssh-tunnel-manager](https://github.com/mdminhazulhaque/ssh-tunnel-manager),
-but it is a separate web implementation.
+server.
 
-![Login screen](docs/screenshots/01-login.png)
+![Empty tunnel list](docs/screenshots/01-login.png)
 
 ## Features
 
 - Single admin login with session cookie, CSRF token and login rate limiting
 - Add/edit/delete tunnel profiles
-- **Per-tunnel authentication: SSH key file or username/password**
+- Per-tunnel authentication: SSH key file or username/password
 - Start/stop local SSH port forwards (`ssh -N -L`) with one click
 - SQLite persistence in `./data` (survives restarts, auto-migrated schema)
 - Live status refresh and recent SSH activity logs
@@ -211,6 +209,7 @@ host key verification, so run `ssh-keyscan` into
   `ss -ltn | grep PORT` or `curl http://127.0.0.1:PORT/`.
 
   ![Password-auth tunnel running](docs/screenshots/06-password-running.png)
+
 - **Edit / Delete** — a tunnel must be stopped before editing or deleting.
 - **Activity logs** — recent lifecycle events plus raw SSH diagnostics
   (e.g. auth failures), useful when a tunnel refuses to start.
@@ -258,4 +257,4 @@ on a spare port while the real service is up.
 
 ## Credits
 
-- Workflow inspired by [mdminhazulhaque/ssh-tunnel-manager](https://github.com/mdminhazulhaque/ssh-tunnel-manager)
+Self-contained web implementation for managing OpenSSH local port forwards.
